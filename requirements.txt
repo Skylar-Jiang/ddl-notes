@@ -1,0 +1,3 @@
+# Runtime dependencies. Tkinter and all other functionality use the standard library.
+pystray==0.19.5
+Pillow>=11.1,<13

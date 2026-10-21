@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "DDL Notes 课程助手",
+  "version": "0.1.5",
+  "description": "使用当前浏览器登录状态，只读导入南开小雅和长江雨课堂作业。适配验证版。",
+  "permissions": ["nativeMessaging", "storage"],
+  "host_permissions": ["https://nankai.ai-augmented.com/*", "https://changjiang.yuketang.cn/*"],
+  "background": {"service_worker": "background.js"},
+  "action": {"default_title": "同步课程作业", "default_popup": "popup.html"},
+  "content_scripts": [{
+    "matches": ["https://nankai.ai-augmented.com/*", "https://changjiang.yuketang.cn/*"],
+    "js": ["readers.js", "content.js"],
+    "run_at": "document_idle"
+  }]
+}
