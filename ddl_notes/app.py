@@ -210,6 +210,8 @@ class App:
         title_label.pack(fill='x')
         body.bind('<Configure>', lambda e: title_label.configure(wraplength=max(self.px(110), e.width)))
         due_text = local_datetime(task.deadline).strftime('%m月%d日  %H:%M') if task.deadline else '没有截止时间'
+        if task.monthly_day:
+            due_text += f' · 每月{task.monthly_day}号'
         tk.Label(body, text=due_text, bg=fill, fg=self.p['muted'],
                  font=('Microsoft YaHei UI', 8), anchor='w').pack(fill='x', pady=(self.px(5), 0))
         due = local_datetime(task.deadline) if task.deadline else None
@@ -276,7 +278,12 @@ class App:
         self.render_tasks()
 
     def toggle_task(self, task):
-        task.completed = not task.completed
+        if task.monthly_day and not task.completed:
+            task.advance_monthly(datetime.now(), completed=True)
+            if self.alarm:
+                self.alarm.task_ids.discard(task.id)
+        else:
+            task.completed = not task.completed
         task.reminder.snoozed_until = None
         self.save()
         self.render_tasks()
@@ -387,7 +394,15 @@ class App:
             return False
 
     def check_reminders(self):
-        events = due_events(self.tasks, self.settings, datetime.now())
+        now = datetime.now()
+        advanced = [task.id for task in self.tasks if task.advance_monthly(now)]
+        if advanced:
+            if self.alarm:
+                self.alarm.task_ids.difference_update(advanced)
+                self.sync_alarm()
+            self.save()
+            self.render_tasks()
+        events = due_events(self.tasks, self.settings, now)
         if not events:
             return
         ids = {event.task_id for event in events}

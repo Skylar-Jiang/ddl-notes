@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import uuid4
 from urllib.parse import urlsplit
 import re
+from calendar import monthrange
 
 
 COLORS = ('lavender', 'peach', 'mint', 'blue', 'butter')
@@ -35,6 +36,12 @@ def local_datetime(value):
     return result
 
 
+def monthly_occurrence(anchor, day, offset=0):
+    year, month = divmod(anchor.year * 12 + anchor.month - 1 + offset, 12)
+    return anchor.replace(year=year, month=month + 1,
+                          day=min(day, monthrange(year, month + 1)[1]), second=0, microsecond=0)
+
+
 @dataclass
 class ReminderState:
     seen: list[str] = field(default_factory=list)
@@ -55,8 +62,13 @@ class Task:
     reminder: ReminderState = field(default_factory=ReminderState)
     source_key: str | None = None
     source_url: str | None = None
+    monthly_day: int | None = None
 
     def __post_init__(self):
+        if self.monthly_day is not None and (
+                type(self.monthly_day) is not int or not 1 <= self.monthly_day <= 31 or
+                not self.deadline or self.source_key is not None):
+            raise ValueError('每月提醒需设置日期和时间，日期为 1 至 31；请使用手动任务。')
         if self.source_key is not None:
             if (not isinstance(self.source_key, str) or len(self.source_key) > 500 or
                     not re.fullmatch(r'(xiaoya|yuketang):\S[^\x00-\x1f]*', self.source_key)):
@@ -100,13 +112,29 @@ class Task:
         data['reminder'] = ReminderState(**data.get('reminder', {}))
         return cls(**data)
 
-    def update(self, *, title, deadline, description, reminder_minutes, color):
+    def update(self, *, title, deadline, description, reminder_minutes, color, monthly_day=None):
         candidate = Task.create(title, deadline, description=description,
-                                reminder_minutes=reminder_minutes, color=color)
-        if (self.deadline, self.reminder_minutes) != (candidate.deadline, reminder_minutes):
+                                reminder_minutes=reminder_minutes, color=color, monthly_day=monthly_day,
+                                source_key=self.source_key, source_url=self.source_url)
+        if (self.deadline, self.reminder_minutes, self.monthly_day) != (candidate.deadline, reminder_minutes, monthly_day):
             self.reminder = ReminderState()
-        for name in ('title', 'deadline', 'description', 'reminder_minutes', 'color'):
+        for name in ('title', 'deadline', 'description', 'reminder_minutes', 'color', 'monthly_day'):
             setattr(self, name, getattr(candidate, name))
+
+    def advance_monthly(self, now, *, completed=False):
+        if self.monthly_day is None:
+            return False
+        due = local_datetime(self.deadline)
+        if not completed and (due.year, due.month) >= (now.year, now.month):
+            return False
+        current = monthly_occurrence(now.replace(hour=due.hour, minute=due.minute), self.monthly_day)
+        if completed:
+            current = max(monthly_occurrence(due, self.monthly_day, 1),
+                          current if current > now else monthly_occurrence(current, self.monthly_day, 1))
+        self.deadline = current.isoformat()
+        self.completed = False
+        self.reminder = ReminderState()
+        return True
 
     def to_dict(self):
         return asdict(self)

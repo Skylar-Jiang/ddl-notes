@@ -4,7 +4,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 from tkinter import ttk
 
-from .model import Task, parse_deadline
+from .model import Task, parse_deadline, monthly_occurrence
 from .widgets import SoftButton
 
 
@@ -70,6 +70,8 @@ class TaskEditor(Dialog):
         self.has_deadline = tk.BooleanVar(value=bool(task.deadline) if task else True)
         self.date_var = tk.StringVar(value=due.strftime('%Y-%m-%d'))
         self.time_var = tk.StringVar(value=due.strftime('%H:%M') if task and task.deadline else '20:00')
+        self.monthly_var = tk.BooleanVar(value=bool(task and task.monthly_day))
+        self.monthly_day_var = tk.StringVar(value=str(task.monthly_day if task and task.monthly_day else due.day))
         self.advance_var = tk.StringVar(value='' if not task or task.reminder_minutes is None else str(task.reminder_minutes))
         self.label('任务名称')
         self.title_entry = self.entry(self.title_var)
@@ -89,6 +91,16 @@ class TaskEditor(Dialog):
         self.date_entry = self.entry(self.date_var, parent=left, width=17)
         self.label('时间  HH:MM', parent=right, pady=(0, 4))
         self.time_entry = self.entry(self.time_var, parent=right, width=9)
+        self.monthly_check = self.check('每月重复提醒 · 完成本次后自动安排下月', self.monthly_var, self.deadline_state)
+        monthly = tk.Frame(self.body, bg=self.p['bg'])
+        monthly.pack(fill='x', pady=(6, 0))
+        tk.Label(monthly, text='每月', bg=self.p['bg'], fg=self.p['text'],
+                 font=('Microsoft YaHei UI', 9)).pack(side='left')
+        self.monthly_entry = ttk.Spinbox(monthly, from_=1, to=31, width=4, textvariable=self.monthly_day_var,
+                                         font=('Microsoft YaHei UI', 10))
+        self.monthly_entry.pack(side='left', padx=6)
+        tk.Label(monthly, text='号 · 不足该天则用月底', bg=self.p['bg'], fg=self.p['muted'],
+                 font=('Microsoft YaHei UI', 9)).pack(side='left')
         self.label(f'提前提醒（分钟）· 留空跟随全局 {app.settings.reminder_minutes} 分钟')
         self.advance_entry = self.entry(self.advance_var)
         self.footer('保存任务')
@@ -97,15 +109,33 @@ class TaskEditor(Dialog):
 
     def deadline_state(self):
         state = 'normal' if self.has_deadline.get() else 'disabled'
-        for entry in (self.date_entry, self.time_entry, self.advance_entry):
+        for entry in (self.time_entry, self.advance_entry):
             entry.configure(state=state)
+        if not self.has_deadline.get():
+            self.monthly_var.set(False)
+        self.date_entry.configure(state='disabled' if self.monthly_var.get() else state)
+        self.monthly_entry.configure(state='normal' if self.monthly_var.get() else 'disabled')
+        self.monthly_check.configure(state=state if not self.task or not self.task.source_key else 'disabled')
 
     def save(self):
         try:
-            due = parse_deadline(self.date_var.get(), self.time_var.get()) if self.has_deadline.get() else None
+            day = int(self.monthly_day_var.get()) if self.monthly_var.get() else None
+            if day is not None:
+                if not 1 <= day <= 31:
+                    raise ValueError('每月日期应为 1 至 31。')
+                now = datetime.now()
+                clock = parse_deadline(now.strftime('%Y-%m-%d'), self.time_var.get())
+                due = monthly_occurrence(clock, day)
+                if due < now:
+                    due = monthly_occurrence(due, day, 1)
+                if (self.task and self.task.monthly_day == day and self.task.deadline and
+                        datetime.fromisoformat(self.task.deadline).time() == clock.time()):
+                    due = datetime.fromisoformat(self.task.deadline)
+            else:
+                due = parse_deadline(self.date_var.get(), self.time_var.get()) if self.has_deadline.get() else None
             advance = int(self.advance_var.get()) if self.advance_var.get().strip() and due else None
             values = dict(title=self.title_var.get(), deadline=due, description=self.description.get('1.0', 'end-1c'),
-                          reminder_minutes=advance)
+                          reminder_minutes=advance, monthly_day=day)
             if self.task:
                 self.task.update(**values, color=self.task.color)
             else:
@@ -117,7 +147,7 @@ class TaskEditor(Dialog):
                 self.app.render_tasks()
                 self.app.check_reminders()
         except ValueError as exc:
-            self.error_var.set(str(exc) if 'invalid literal' not in str(exc) else '提醒分钟数应为整数。')
+            self.error_var.set(str(exc) if 'invalid literal' not in str(exc) else '每月日期和提醒分钟数应为整数。')
 
 
 class SettingsDialog(Dialog):

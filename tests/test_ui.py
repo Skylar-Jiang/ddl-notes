@@ -69,6 +69,62 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.app.tasks, [])
         form.window.destroy()
 
+    def test_monthly_editor_completion_and_cancellation(self):
+        form = self.app.open_editor()
+        form.title_var.set('每月续费')
+        form.monthly_var.set(True)
+        form.monthly_day_var.set('31')
+        form.time_var.set('09:30')
+        form.save()
+        self.assertFalse(form.window.winfo_exists())
+        task = self.app.tasks[0]
+        self.assertEqual(task.monthly_day, 31)
+        first = task.deadline
+        self.app.toggle_task(task)
+        self.assertGreater(task.deadline, first)
+        self.assertFalse(task.completed)
+        self.assertEqual(self.app.store.load()[0][0].monthly_day, 31)
+        form = self.app.open_editor(task)
+        self.assertTrue(form.monthly_var.get())
+        form.monthly_var.set(False)
+        form.save()
+        self.assertIsNone(task.monthly_day)
+        self.app.toggle_task(task)
+        self.assertTrue(task.completed)
+
+    def test_monthly_completion_closes_current_alarm(self):
+        task = Task.create('续费', datetime.now()-timedelta(minutes=1), monthly_day=datetime.now().day)
+        self.app.tasks = [task]
+        self.app.check_reminders()
+        self.assertIsNotNone(self.app.alarm)
+        self.app.toggle_task(task)
+        self.assertIsNone(self.app.alarm)
+
+    def test_monthly_editor_rejects_invalid_day(self):
+        form = self.app.open_editor()
+        form.title_var.set('续费')
+        form.monthly_var.set(True)
+        form.monthly_day_var.set('32')
+        form.save()
+        self.assertTrue(form.window.winfo_exists())
+        self.assertTrue(form.error_var.get())
+        self.assertEqual(self.app.tasks, [])
+
+    def test_monthly_rollover_is_saved_and_notified_after_restarting(self):
+        task = Task.create('续费', datetime(2026, 1, 31, 20), monthly_day=31)
+        task.reminder.seen = ['upcoming', 'deadline']
+        self.app.tasks = [task]
+        with patch('ddl_notes.app.datetime', wraps=datetime) as clock:
+            clock.now.return_value = datetime(2028, 2, 29, 21)
+            self.app.check_reminders()
+            alarm = self.app.alarm
+            self.assertIsNotNone(alarm)
+            self.app.check_reminders()
+            self.assertIs(self.app.alarm, alarm)
+        saved = self.app.store.load()[0][0]
+        self.assertEqual(saved.deadline, '2028-02-29T20:00:00')
+        self.assertIn('deadline', saved.reminder.seen)
+
     def test_task_colors_alternate_after_sorting_filtering_and_theme_changes(self):
         self.app.tasks = [Task.create(str(i), datetime.now() + timedelta(days=10-i), color='mint')
                           for i in range(9)]
