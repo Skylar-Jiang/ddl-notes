@@ -8,7 +8,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from .dialogs import SettingsDialog, TaskEditor
-from .model import COLORS, local_datetime, remaining_text, sort_tasks
+from .model import COLORS, local_datetime, remaining_text, sort_tasks, as_instant
 from .reminder_ui import ReminderWindow
 from .scheduler import acknowledge, due_events
 from .widgets import DARK, DARK_PASTELS, LIGHT, PASTELS, RoundCheck, RoundedCard, ScrollArea, SoftButton
@@ -196,6 +196,8 @@ class App:
         # Long names get another line; full title remains available in the editor.
         lines = max(1, (len(title) + 15) // 16)
         height = 77 + (min(lines, 6)-1)*19
+        if task.deadline and task.deadline_timezone == 'Asia/Shanghai':
+            height += 18
         card = RoundedCard(self.area.inner, fill, border, height=self.px(height), scale=self.scale)
         card.pack(fill='x', pady=(0, self.px(9)), padx=(0, self.px(3)))
         content = card.content
@@ -210,13 +212,18 @@ class App:
         title_label.pack(fill='x')
         body.bind('<Configure>', lambda e: title_label.configure(wraplength=max(self.px(110), e.width)))
         due_text = local_datetime(task.deadline).strftime('%m月%d日  %H:%M') if task.deadline else '没有截止时间'
+        if task.deadline and task.deadline_timezone == 'Asia/Shanghai':
+            due_text += ' · 北京时间'
         if task.monthly_day:
             due_text += f' · 每月{task.monthly_day}号'
         tk.Label(body, text=due_text, bg=fill, fg=self.p['muted'],
                  font=('Microsoft YaHei UI', 8), anchor='w').pack(fill='x', pady=(self.px(5), 0))
-        due = local_datetime(task.deadline) if task.deadline else None
+        if task.deadline and task.deadline_timezone == 'Asia/Shanghai':
+            tk.Label(body, text=task.local_deadline().strftime('%m月%d日  %H:%M') + ' · 本地时间',
+                     bg=fill, fg=self.p['muted'], font=('Microsoft YaHei UI', 8), anchor='w').pack(fill='x')
+        due = task.deadline_instant()
         advance = task.reminder_minutes if task.reminder_minutes is not None else self.settings.reminder_minutes
-        urgent = due and not task.completed and (due-now).total_seconds() <= advance*60
+        urgent = due and not task.completed and (due-as_instant(now)).total_seconds() <= advance*60
         tk.Label(body, text=remaining_text(task, now), bg=fill,
                  fg=self.p['danger'] if urgent else self.p['muted'],
                  font=('Microsoft YaHei UI', 8), anchor='w').pack(fill='x', pady=(self.px(3), 0))

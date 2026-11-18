@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from .model import SOURCE_HOSTS, Task, validate_source_url
+from .model import SOURCE_HOSTS, Task, validate_source_url, as_instant
 
 
 @dataclass(frozen=True)
@@ -83,7 +83,7 @@ def parse_sync(payload):
 
 def merge_sync(existing_tasks, payload, *, now=None):
     batch = parse_sync(payload)
-    cutoff = (now if now is not None else datetime.now()) - timedelta(days=2)
+    cutoff = as_instant(now if now is not None else datetime.now()) - timedelta(days=2)
     result = SyncResult(copy.deepcopy(existing_tasks))
     by_source = {}
     for task in result.tasks:
@@ -94,7 +94,7 @@ def merge_sync(existing_tasks, payload, *, now=None):
     expired_keys = set()
     for record in batch.tasks:
         key = f'{batch.source}:{record.external_id}'
-        if record.deadline and datetime.fromisoformat(record.deadline) < cutoff:
+        if record.deadline and as_instant(record.deadline, 'Asia/Shanghai') < cutoff:
             expired_keys.add(key)
             result.skipped += 1
             continue
@@ -125,7 +125,7 @@ def merge_sync(existing_tasks, payload, *, now=None):
         task.source_key in expired_keys or
         (task.source_key and task.source_key.startswith('yuketang:') and
          task.source_key.split(':', 2)[1] in excluded) or
-        (task.source_key and task.deadline and datetime.fromisoformat(task.deadline) < cutoff))]
+        (task.source_key and task.deadline and task.deadline_instant() < cutoff))]
     result.removed = len(result.tasks) - len(retained)
     result.tasks = retained
     return result

@@ -69,6 +69,29 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(self.app.tasks, [])
         form.window.destroy()
 
+    def test_editor_labels_beijing_and_monthly_local_without_shifting_dates(self):
+        task = Task.create('作业', datetime(2027, 1, 20, 20))
+        self.app.tasks = [task]
+        form = self.app.open_editor(task)
+        self.assertEqual(form.time_var.get(), '20:00')
+        self.assertIn('北京时间', form.clock_label.cget('text'))
+        form.save()
+        self.assertEqual(task.deadline, '2027-01-20T20:00:00')
+        self.app.render_tasks()
+        labels = []
+        pending = list(self.app.area.inner.winfo_children())
+        while pending:
+            widget = pending.pop()
+            if isinstance(widget, tk.Label):
+                labels.append(widget.cget('text'))
+            pending.extend(widget.winfo_children())
+        self.assertTrue(any('北京时间' in label for label in labels))
+        self.assertTrue(any('本地时间' in label for label in labels))
+        form = self.app.open_editor(task)
+        form.monthly_var.set(True)
+        form.deadline_state()
+        self.assertIn('本地', form.clock_label.cget('text'))
+
     def test_monthly_editor_completion_and_cancellation(self):
         form = self.app.open_editor()
         form.title_var.set('每月续费')

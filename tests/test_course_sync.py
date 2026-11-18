@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from ddl_notes.course_sync import merge_sync, parse_sync
-from ddl_notes.model import ReminderState, Settings, Task
+from ddl_notes.model import ReminderState, Settings, Task, CHINA
 from ddl_notes.storage import Store
 
 
@@ -26,7 +26,7 @@ class CourseSyncTests(unittest.TestCase):
     def setUp(self):
         clock = patch('ddl_notes.course_sync.datetime', wraps=datetime)
         self.addCleanup(clock.stop)
-        clock.start().now.return_value = datetime(2026, 10, 20, 12)
+        clock.start().now.return_value = datetime(2026, 10, 20, 12, tzinfo=CHINA)
 
     def test_removes_only_explicitly_excluded_rain_classrooms_without_deadlines(self):
         existing = [Task.create('旧课', source_key='yuketang:10:1'),
@@ -56,8 +56,8 @@ class CourseSyncTests(unittest.TestCase):
         self.assertIsNone(original.deadline)
 
     def test_skips_new_imports_only_when_more_than_48_hours_overdue(self):
-        now = datetime(2026, 10, 20, 20)
-        cutoff = now - timedelta(days=2)
+        now = datetime(2026, 10, 20, 20, tzinfo=CHINA)
+        cutoff = (now - timedelta(days=2)).replace(tzinfo=None)
         result = merge_sync([], payload(
             record(external_id='old', deadline=(cutoff-timedelta(minutes=1)).isoformat()),
             record(external_id='boundary', deadline=cutoff.isoformat()),
@@ -68,7 +68,7 @@ class CourseSyncTests(unittest.TestCase):
         self.assertEqual((result.added, result.skipped, result.removed), (3, 1, 0))
 
     def test_removes_expired_imports_but_keeps_manual_tasks_and_no_deadline(self):
-        now = datetime(2026, 10, 20, 20)
+        now = datetime(2026, 10, 20, 20, tzinfo=CHINA)
         old = now-timedelta(days=3)
         manual = Task.create('手动旧任务', old)
         imported = Task.create('旧导入', old, source_key='xiaoya:old')
@@ -83,7 +83,7 @@ class CourseSyncTests(unittest.TestCase):
         self.assertEqual(existing, before)
 
     def test_extended_deadline_preserves_existing_import_before_cleanup(self):
-        now = datetime(2026, 10, 20, 20)
+        now = datetime(2026, 10, 20, 20, tzinfo=CHINA)
         existing = Task.create('已导入', now-timedelta(days=3),
                                source_key='xiaoya:course-1:task-1', description='保留笔记')
         result = merge_sync([existing], payload(record(deadline='2026-10-25T20:00')), now=now)
@@ -92,7 +92,7 @@ class CourseSyncTests(unittest.TestCase):
         self.assertEqual(result.tasks[0].description, '保留笔记')
 
     def test_remote_expired_deadline_removes_existing_import_even_if_local_deadline_was_future(self):
-        now = datetime(2026, 10, 20, 20)
+        now = datetime(2026, 10, 20, 20, tzinfo=CHINA)
         existing = Task.create('已导入', now+timedelta(days=3), source_key='xiaoya:course-1:task-1')
         result = merge_sync([existing], payload(record(deadline='2026-10-17T20:00')), now=now)
         self.assertEqual(result.tasks, [])

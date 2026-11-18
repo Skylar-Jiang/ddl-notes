@@ -1,6 +1,6 @@
-"""Local wall-clock times are stored without timezone offsets, to minute precision."""
+"""Beijing task deadlines and local monthly schedules, stored to minute precision."""
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from urllib.parse import urlsplit
 import re
@@ -9,6 +9,7 @@ from calendar import monthrange
 
 COLORS = ('lavender', 'peach', 'mint', 'blue', 'butter')
 SOURCE_HOSTS = {'xiaoya': 'nankai.ai-augmented.com', 'yuketang': 'changjiang.yuketang.cn'}
+CHINA = timezone(timedelta(hours=8))
 
 
 def validate_source_url(source, url):
@@ -34,6 +35,13 @@ def local_datetime(value):
     if result.tzinfo is not None:
         raise ValueError('日期时间应采用系统本地时间，不带时区偏移。')
     return result
+
+
+def as_instant(value, clock='local'):
+    result = datetime.fromisoformat(value) if isinstance(value, str) else value
+    if result.tzinfo is None and clock == 'Asia/Shanghai':
+        result = result.replace(tzinfo=CHINA)
+    return result.astimezone(timezone.utc)
 
 
 def monthly_occurrence(anchor, day, offset=0):
@@ -63,8 +71,14 @@ class Task:
     source_key: str | None = None
     source_url: str | None = None
     monthly_day: int | None = None
+    deadline_timezone: str | None = None
 
     def __post_init__(self):
+        if self.deadline_timezone is None:
+            self.deadline_timezone = 'local' if self.monthly_day is not None else 'Asia/Shanghai'
+        if (self.deadline_timezone not in ('local', 'Asia/Shanghai') or
+                (self.monthly_day is not None and self.deadline_timezone != 'local')):
+            raise ValueError('任务时区无效。')
         if self.monthly_day is not None and (
                 type(self.monthly_day) is not int or not 1 <= self.monthly_day <= 31 or
                 not self.deadline or self.source_key is not None):
@@ -98,10 +112,13 @@ class Task:
             raise ValueError('提醒记录无效。')
         for value in (self.reminder.snoozed_until, self.reminder.last_notified):
             if value is not None:
-                local_datetime(value)
+                as_instant(value)
 
     @classmethod
     def create(cls, title, deadline=None, **kwargs):
+        if deadline and deadline.tzinfo is not None:
+            clock = kwargs.get('deadline_timezone') or ('local' if kwargs.get('monthly_day') else 'Asia/Shanghai')
+            deadline = (deadline.astimezone(CHINA) if clock == 'Asia/Shanghai' else deadline.astimezone()).replace(tzinfo=None)
         return cls(id=str(uuid4()), title=title, created_at=datetime.now().isoformat(),
                    deadline=deadline.replace(second=0, microsecond=0).isoformat() if deadline else None,
                    **kwargs)
@@ -109,16 +126,29 @@ class Task:
     @classmethod
     def from_dict(cls, data):
         data = dict(data)
+        migrate = 'deadline_timezone' not in data and not data.get('monthly_day')
         data['reminder'] = ReminderState(**data.get('reminder', {}))
-        return cls(**data)
+        task = cls(**data)
+        if (migrate and task.deadline and not task.completed and
+                task.deadline_instant() > as_instant(datetime.now())):
+            task.reminder = ReminderState()
+        return task
+
+    def deadline_instant(self):
+        return as_instant(self.deadline, self.deadline_timezone) if self.deadline else None
+
+    def local_deadline(self):
+        due = self.deadline_instant()
+        return due.astimezone().replace(tzinfo=None) if due else None
 
     def update(self, *, title, deadline, description, reminder_minutes, color, monthly_day=None):
         candidate = Task.create(title, deadline, description=description,
                                 reminder_minutes=reminder_minutes, color=color, monthly_day=monthly_day,
                                 source_key=self.source_key, source_url=self.source_url)
-        if (self.deadline, self.reminder_minutes, self.monthly_day) != (candidate.deadline, reminder_minutes, monthly_day):
+        if (self.deadline, self.reminder_minutes, self.monthly_day, self.deadline_timezone) != (
+                candidate.deadline, reminder_minutes, monthly_day, candidate.deadline_timezone):
             self.reminder = ReminderState()
-        for name in ('title', 'deadline', 'description', 'reminder_minutes', 'color', 'monthly_day'):
+        for name in ('title', 'deadline', 'description', 'reminder_minutes', 'color', 'monthly_day', 'deadline_timezone'):
             setattr(self, name, getattr(candidate, name))
 
     def advance_monthly(self, now, *, completed=False):
@@ -174,12 +204,13 @@ class Settings:
 
 
 def sort_tasks(tasks, now, mode='deadline'):
+    now = as_instant(now)
     def key(task):
-        due = local_datetime(task.deadline) if task.deadline else None
+        due = task.deadline_instant()
         group = 3 if task.completed else 0 if due and due <= now else 1 if due else 2
         if mode == 'created':
             return (task.completed, task.created_at)
-        return (group, task.deadline or task.created_at, task.created_at)
+        return (group, due.isoformat() if due else task.created_at, task.created_at)
     return sorted(tasks, key=key)
 
 
@@ -188,7 +219,7 @@ def remaining_text(task, now):
         return '已完成'
     if not task.deadline:
         return '不赶时间'
-    minutes = int((local_datetime(task.deadline) - now).total_seconds() // 60)
+    minutes = int((task.deadline_instant() - as_instant(now)).total_seconds() // 60)
     if minutes < 0:
         minutes = abs(minutes)
         amount = f'{minutes // 1440} 天' if minutes >= 1440 else f'{minutes // 60} 小时' if minutes >= 60 else f'{minutes} 分钟'

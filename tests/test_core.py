@@ -5,12 +5,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
-from ddl_notes.model import Task, Settings, sort_tasks, parse_deadline
+from ddl_notes.model import Task, Settings, sort_tasks, parse_deadline, CHINA
 from ddl_notes.scheduler import due_events, acknowledge, snooze
 from ddl_notes.storage import Store
 
 
-NOW = datetime(2026, 10, 20, 19, 0)
+NOW = datetime(2026, 10, 20, 19, 0, tzinfo=CHINA)
 
 
 class ModelTests(unittest.TestCase):
@@ -19,7 +19,7 @@ class ModelTests(unittest.TestCase):
             Task.create('  ')
         with self.assertRaises(ValueError):
             parse_deadline('2026-02-30', '20:00')
-        self.assertEqual(parse_deadline('2026-10-20', '20:00'), NOW + timedelta(hours=1))
+        self.assertEqual(parse_deadline('2026-10-20', '20:00'), (NOW + timedelta(hours=1)).replace(tzinfo=None))
         with self.assertRaises(ValueError):
             Task.create('x', reminder_minutes=-1)
 

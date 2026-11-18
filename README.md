@@ -6,13 +6,13 @@ DDL Notes 是一个 Windows 桌面便签工具。它有类似 Sticky Notes 的�
 
 手动记事和提醒可离线使用，无需注册账号。需要导入课程作业时，可以选用配套的 Chrome / Edge 助手。
 
-[下载 Windows 版](https://github.com/Skylar-Jiang/ddl-notes/releases/download/v0.1.6/DDLNotes-windows-x64-v0.1.6.zip) · [查看版本与校验文件](https://github.com/Skylar-Jiang/ddl-notes/releases/tag/v0.1.6) · [课程助手配置](SYNC-SETUP.md) · [反馈问题](https://github.com/Skylar-Jiang/ddl-notes/issues)
+[下载 Windows 版](https://github.com/Skylar-Jiang/ddl-notes/releases/download/v0.1.7/DDLNotes-windows-x64-v0.1.7.zip) · [查看版本与校验文件](https://github.com/Skylar-Jiang/ddl-notes/releases/tag/v0.1.7) · [课程助手配置](SYNC-SETUP.md) · [反馈问题](https://github.com/Skylar-Jiang/ddl-notes/issues)
 
-> 当前版本：**v0.1.6 预发布版**，已在 Windows 11 x64 上验证。课程助手仍在适配验证中，暂不支持所有学校和学期；不使用课程助手也可以完整使用手动待办和提醒。
+> 当前版本：**v0.1.7 预发布版**，已在 Windows 11 x64 上验证。课程助手仍在适配验证中，暂不支持所有学校和学期；不使用课程助手也可以完整使用手动待办和提醒。
 
 ## 三分钟开始使用
 
-1. 下载上方的 **`DDLNotes-windows-x64-v0.1.6.zip`**。GitHub Releases 中的 `Source code` 是源码，不是可直接运行的程序。
+1. 下载上方的 **`DDLNotes-windows-x64-v0.1.7.zip`**。GitHub Releases 中的 `Source code` 是源码，不是可直接运行的程序。
 2. 将压缩包**完整解压**到一个准备长期保留的目录，例如 `D:\Apps\DDLNotes`。不要直接在压缩包内运行。
 3. 双击 **`DDLNotes.exe`**。无需安装 Python，也无需管理员权限。首次启动是空便签。
 4. 点击底部 **“添加任务”**，填写任务名称，按需设置截止日期和时间，然后保存。
@@ -69,13 +69,16 @@ DDLNotes/
 
 ### 普通提醒规则
 
-- 日期使用 `YYYY-MM-DD`，时间使用 `HH:MM`，按电脑的本地日期时间解释。
+- 普通任务的日期使用 `YYYY-MM-DD`、时间使用 `HH:MM`，**手动输入和课程导入都按北京时间理解**。卡片同时列出北京时间和换算后的电脑本地时间；提醒与倒计时对应同一个实际时刻，自动适配电脑时区及冬夏令时，无需把电脑改回中国时区。
+- **每月重复提醒跟随电脑本地时间**。例如每月 20 号 09:00，就是所在地的上午 9 点。
 - 例如 DDL 是晚上 20:00，默认在 19:00 和 20:00 各提醒一次。任务可单独调整提前量；填 `0` 表示只在到期时提醒。
 - 多个任务合并到一个提醒窗口，可以直接完成任务，或选择稍后 10 / 30 分钟提醒。“知道了”只关闭本次提醒。
 - 默认不会持续弹窗。可开启临期重复提醒；截止后不再自动重复。
 - 休眠恢复或重新启动后，会按当前状态补发相关提醒，不会逐条重放所有错过的节点。
 
 程序约每 15 秒检查一次提醒，可能有约 15 秒延迟。当前使用应用内提醒窗口，不写入 Windows 通知中心；锁屏时不能保证看到提醒。
+
+升级到 0.1.7 时，已有普通任务保留原始日期与时间，并按北京时间解释，重新校准一次未完成任务的提醒记录。每月重复规则保留。建议升级前导出备份；若过去手动输入的是美国本地时间，请在编辑窗口改填对应的北京时间。
 
 ## 可选：从课程平台导入作业
 

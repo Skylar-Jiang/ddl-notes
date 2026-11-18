@@ -4,7 +4,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 from tkinter import ttk
 
-from .model import Task, parse_deadline, monthly_occurrence
+from .model import Task, parse_deadline, monthly_occurrence, CHINA
 from .widgets import SoftButton
 
 
@@ -65,7 +65,7 @@ class TaskEditor(Dialog):
     def __init__(self, app, task=None):
         super().__init__(app, '编辑任务' if task else '记下一件事')
         self.task = task
-        due = datetime.fromisoformat(task.deadline) if task and task.deadline else datetime.now() + timedelta(days=1)
+        due = datetime.fromisoformat(task.deadline) if task and task.deadline else datetime.now(CHINA).replace(tzinfo=None) + timedelta(days=1)
         self.title_var = tk.StringVar(value=task.title if task else '')
         self.has_deadline = tk.BooleanVar(value=bool(task.deadline) if task else True)
         self.date_var = tk.StringVar(value=due.strftime('%Y-%m-%d'))
@@ -89,7 +89,7 @@ class TaskEditor(Dialog):
         right = tk.Frame(dates, bg=self.p['bg']); right.pack(side='left', padx=(10, 0))
         self.label('日期  YYYY-MM-DD', parent=left, pady=(0, 4))
         self.date_entry = self.entry(self.date_var, parent=left, width=17)
-        self.label('时间  HH:MM', parent=right, pady=(0, 4))
+        self.clock_label = self.label('时间  HH:MM', parent=right, pady=(0, 4))
         self.time_entry = self.entry(self.time_var, parent=right, width=9)
         self.monthly_check = self.check('每月重复提醒 · 完成本次后自动安排下月', self.monthly_var, self.deadline_state)
         monthly = tk.Frame(self.body, bg=self.p['bg'])
@@ -116,6 +116,7 @@ class TaskEditor(Dialog):
         self.date_entry.configure(state='disabled' if self.monthly_var.get() else state)
         self.monthly_entry.configure(state='normal' if self.monthly_var.get() else 'disabled')
         self.monthly_check.configure(state=state if not self.task or not self.task.source_key else 'disabled')
+        self.clock_label.configure(text='时间 · 本地' if self.monthly_var.get() else '时间 · 北京时间')
 
     def save(self):
         try:
