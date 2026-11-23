@@ -1,0 +1,2 @@
+# Optional desktop background synchronization; uses the installed Microsoft Edge.
+playwright==1.65.2

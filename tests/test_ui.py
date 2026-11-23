@@ -40,6 +40,29 @@ class GuiTests(unittest.TestCase):
         self.app.quit()
         self.assertFalse(self.root.tk.call('after', 'info'))
 
+    def test_auto_sync_settings_save_without_starting_a_browser(self):
+        form = self.app.open_auto_sync()
+        self.assertFalse(form.enabled_var.get())
+        form.enabled_var.set(True)
+        form.interval_var.set('60')
+        form.xiaoya_var.set(True)
+        form.rain_var.set(False)
+        form.save()
+        saved = self.app.store.load()[1]
+        self.assertTrue(saved.auto_sync_enabled)
+        self.assertEqual(saved.auto_sync_minutes, 60)
+        self.assertFalse(saved.sync_yuketang)
+        self.assertIsNone(self.app.auto_sync.process)
+
+    def test_auto_sync_settings_reject_invalid_interval(self):
+        form = self.app.open_auto_sync()
+        form.enabled_var.set(True)
+        form.interval_var.set('1')
+        form.save()
+        self.assertTrue(form.window.winfo_exists())
+        self.assertTrue(form.error_var.get())
+        self.assertFalse(self.app.settings.auto_sync_enabled)
+
     def test_create_edit_complete_and_restart(self):
         form = self.app.open_editor()
         self.root.update()
@@ -263,7 +286,7 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(len(self.app.tasks), 1)
 
     def test_dialog_footer_controls_are_not_clipped(self):
-        for form in (self.app.open_editor(), self.app.open_settings(), self.app.open_course_sync()):
+        for form in (self.app.open_editor(), self.app.open_settings(), self.app.open_course_sync(), self.app.open_auto_sync()):
             self.root.update()
             footer = form.body.winfo_children()[-1]
             for button in footer.winfo_children():

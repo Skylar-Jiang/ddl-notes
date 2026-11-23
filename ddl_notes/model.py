@@ -172,6 +172,10 @@ class Task:
 
 @dataclass
 class Settings:
+    auto_sync_enabled: bool = False
+    auto_sync_minutes: int = 30
+    sync_xiaoya: bool = True
+    sync_yuketang: bool = True
     topmost: bool = False
     opacity: float = 1.0
     close_to_tray: bool = True
@@ -188,10 +192,13 @@ class Settings:
     y: int = 100
 
     def __post_init__(self):
-        for name in ('topmost', 'close_to_tray', 'repeat_enabled', 'show_completed', 'collapsed'):
+        for name in ('topmost', 'close_to_tray', 'repeat_enabled', 'show_completed', 'collapsed',
+                     'auto_sync_enabled', 'sync_xiaoya', 'sync_yuketang'):
             if type(getattr(self, name)) is not bool:
                 raise ValueError('设置开关无效。')
-        for name, lower, upper in [('reminder_minutes', 0, 525600), ('repeat_minutes', 1, 10080),
+        if self.auto_sync_enabled and not (self.sync_xiaoya or self.sync_yuketang):
+            raise ValueError('自动同步至少需要选择一个平台。')
+        for name, lower, upper in [('auto_sync_minutes', 5, 1440), ('reminder_minutes', 0, 525600), ('repeat_minutes', 1, 10080),
                                   ('width', 300, 5000), ('height', 320, 5000),
                                   ('x', -100000, 100000), ('y', -100000, 100000)]:
             value = getattr(self, name)

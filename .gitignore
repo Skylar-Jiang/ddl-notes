@@ -15,3 +15,6 @@ dist/
 /before-sync-cleanup-*.json
 /native-host.json
 /inbox/
+/auto-sync/
+/auto-sync-auth/
+/auto-sync-last.json

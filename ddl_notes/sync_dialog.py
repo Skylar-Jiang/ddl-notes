@@ -12,6 +12,8 @@ class CourseSyncDialog(Dialog):
     def __init__(self, app):
         super().__init__(app, '连接课程作业', width=450)
         self.extension_var = tk.StringVar()
+        SoftButton(self.body, '自动同步（只需打开便签）…', app.open_auto_sync, palette=self.p,
+                   width=300, filled=True, height=34, scale=app.scale).pack(anchor='w', pady=6)
         self.label('首次连接', bold=True)
         self.label('1. 在 Chrome / Edge 扩展管理页加载 browser-helper 文件夹。\n'
                    '2. 复制助手的扩展 ID，粘贴到下面并连接。\n'

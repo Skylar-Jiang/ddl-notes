@@ -30,7 +30,7 @@ async function platformHttpError(response, cookies) {
   } catch { /* Keep the HTTP status when an error body is not valid JSON. */ }
   return new Error(message);
 }
-async function readPlatform(source) {
+function platformClient(source) {
   const expected = source === 'xiaoya' ? 'nankai.ai-augmented.com' : 'changjiang.yuketang.cn';
   if (location.hostname !== expected) throw new Error('平台标签页不匹配。');
   const cookies = cookieEntries();
@@ -79,7 +79,10 @@ async function readPlatform(source) {
     if (!response.headers.get('content-type')?.includes('json')) throw new Error('平台返回了登录页，请先登录。');
     return response.json();
   };
-  return DDLReaders.collect(source, get, text => {
+  return get;
+}
+async function readPlatform(source) {
+  return DDLReaders.collect(source, platformClient(source), text => {
     chrome.runtime.sendMessage({type: 'progress', text}).catch(() => {});
   });
 }

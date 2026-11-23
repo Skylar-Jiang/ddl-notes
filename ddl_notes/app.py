@@ -14,6 +14,7 @@ from .scheduler import acknowledge, due_events
 from .widgets import DARK, DARK_PASTELS, LIGHT, PASTELS, RoundCheck, RoundedCard, ScrollArea, SoftButton
 from .windows import Startup, Tray, move_window, screen_bounds, style_window
 from .course_sync import merge_sync
+from .auto_sync import AutoSync
 
 
 class App:
@@ -27,6 +28,9 @@ class App:
         self.editor = None
         self.settings_dialog = None
         self.sync_dialog = None
+        self.auto_sync_dialog = None
+        self.auto_sync = AutoSync(store.path.parent)
+        self.auto_sync_status = tk.StringVar(value=self.auto_sync.status)
         self.sync_status = tk.StringVar(value='尚未同步课程作业')
         self._sync_poll_count = 0
         self._closing = False
@@ -319,6 +323,7 @@ class App:
         menu = tk.Menu(self.root, tearoff=False)
         menu.add_command(label='设置…', command=self.open_settings)
         menu.add_command(label='连接 / 同步课程作业…', command=self.open_course_sync)
+        menu.add_command(label='自动同步课程…', command=self.open_auto_sync)
         menu.add_command(label='按创建时间排序' if self.settings.sort_by == 'deadline' else '按截止时间排序', command=self.toggle_sort)
         menu.add_command(label='隐藏到托盘', command=self.hide)
         menu.add_separator()
@@ -353,6 +358,15 @@ class App:
         self.show()
         self.sync_dialog = CourseSyncDialog(self)
         return self.sync_dialog
+
+    def open_auto_sync(self):
+        from .auto_sync_dialog import AutoSyncDialog
+        if self.auto_sync_dialog and self.auto_sync_dialog.window.winfo_exists():
+            self.auto_sync_dialog.window.lift()
+            return self.auto_sync_dialog
+        self.show()
+        self.auto_sync_dialog = AutoSyncDialog(self)
+        return self.auto_sync_dialog
 
     def consume_sync(self):
         inbox = self.store.path.parent / 'inbox'
@@ -440,6 +454,11 @@ class App:
     def poll_queue(self):
         if self._closing:
             return
+        if not self.demo:
+            self.auto_sync.poll(self.settings)
+            self.auto_sync_status.set(self.auto_sync.status)
+            if self.auto_sync.needs_login:
+                self.count_label.configure(text='课程同步需要重新登录')
         if self.guard and self.guard.show_requested():
             self.show()
         self._sync_poll_count = (self._sync_poll_count + 1) % 4
@@ -494,6 +513,7 @@ class App:
         if not self.save():
             return
         self._closing = True
+        self.auto_sync.close()
         if self._geometry_after:
             self.root.after_cancel(self._geometry_after)
         # All after callbacks belong to this Tcl interpreter, including tooltip/dialog timers.
